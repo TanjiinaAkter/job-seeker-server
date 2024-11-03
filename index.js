@@ -6,10 +6,11 @@ require("dotenv").config();
 const cors = require("cors");
 const multer = require("multer");
 const path = require("path");
-// const upload = require('./middleware/upload');
+
 app.use(express.urlencoded({ extended: true }));
 app.use(cors());
 app.use(express.json());
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 // Set storage engine
 const storage = multer.diskStorage({
   destination: "./uploads/",
@@ -81,6 +82,16 @@ async function run() {
       res.send(result);
     });
 
+    app.patch("/alljobs", async (req, res) => {
+      const { jobId } = req.body;
+      const result = await alljobsCollection.updateOne(
+        { _id: new ObjectId(jobId) },
+        { $inc: { hiddenapplicationnumber: 1 } }
+      );
+      res.send(result);
+    });
+
+    // eita ager ta
     app.post("/applydata", async (req, res) => {
       const dataapply = req.body;
       const result = await applydataCollection.insertOne(dataapply);
@@ -103,12 +114,20 @@ async function run() {
         const result = await applicationCollection.insertOne(applicationData);
         res.status(201).json({
           message: "Application submitted successfully!",
-          data: result,
+          data: {
+            id: result.insertedId, // Include the ID of the inserted document
+            ...applicationData, // Include the rest of the application data
+          },
         });
       } catch (error) {
         console.error("Error saving application:", error);
         res.status(500).json({ message: "Error saving application", error });
       }
+    });
+
+    app.get("/applications", async (req, res) => {
+      const result = await applicationCollection.find().toArray();
+      res.send(result);
     });
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
