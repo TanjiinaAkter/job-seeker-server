@@ -6,10 +6,11 @@ require("dotenv").config();
 const cors = require("cors");
 const multer = require("multer");
 const path = require("path");
-
+// client er form submission er data parse korte url encoded use hocche
 app.use(express.urlencoded({ extended: true }));
 app.use(cors());
 app.use(express.json());
+// server theke uploaded file gulo static vabe dibe jeno client side e easily access koora jay
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 // Set storage engine
 const storage = multer.diskStorage({
@@ -18,7 +19,7 @@ const storage = multer.diskStorage({
     cb(null, Date.now() + path.extname(file.originalname)); // Append extension
   },
 });
-// Init upload
+// Init upload ..media type of the file(mimtype)
 const upload = multer({
   storage,
   limits: { fileSize: 1000000 }, // Limit file size to 1MB
@@ -75,6 +76,7 @@ async function run() {
       const result = await alljobsCollection.find().toArray();
       res.send(result);
     });
+    // job detail pete id niyechi
     app.get("/alljobs/:id", async (req, res) => {
       const id = req.params.id;
       const get_id = { _id: new ObjectId(id) };
@@ -83,6 +85,7 @@ async function run() {
     });
 
     app.patch("/alljobs", async (req, res) => {
+      // jobId hpcche amra jeita job apply kortesi oi job ta anlam id diye
       const { jobId } = req.body;
       const result = await alljobsCollection.updateOne(
         { _id: new ObjectId(jobId) },
@@ -99,7 +102,7 @@ async function run() {
     });
     // Route for handling job application submissions
     app.post("/formapply", upload, async (req, res) => {
-      const { name, email } = req.body;
+      const { name, email, company, jobTitle, jobId } = req.body;
       const resume = req.file ? req.file.filename : null; // Get the filename of the uploaded file
 
       // Prepare the application data
@@ -107,9 +110,12 @@ async function run() {
         name,
         email,
         resume,
+        jobId,
+        company,
+        jobTitle,
         createdAt: new Date(),
       };
-
+      console.log(applicationData);
       try {
         const result = await applicationCollection.insertOne(applicationData);
         res.status(201).json({
@@ -125,8 +131,37 @@ async function run() {
       }
     });
 
+    // app.get("/applications", async (req, res) => {
+    //   const result = await applicationCollection.find().toArray();
+    //   res.send(result);
+    // });
     app.get("/applications", async (req, res) => {
-      const result = await applicationCollection.find().toArray();
+      const email = req.query.email;
+      console.log("specific email", email); // This will show the email being queried
+      const query = { email: email };
+      const result = await applicationCollection.find(query).toArray();
+      res.send(result);
+    });
+    // app.get("/applications/:email", async (req, res) => {
+    //   const email = req.query.email;
+    //   const query = { email: email };
+    //   console.log("specific email", query,email);
+    //   const result = await applicationCollection.find(query).toArray();
+    //   res.send(result);
+    // });
+    app.patch("/applications/:id", async (req, res) => {
+      const jobInfo = req.body;
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const updatedDoc = {
+        $set: {
+          jobId: jobInfo.jobId,
+          jobtitle: jobInfo.jobtitle,
+          company: jobInfo.company,
+        },
+      };
+      console.log(query, jobInfo, updatedDoc);
+      const result = await applicationCollection.updateOne(query, updatedDoc);
       res.send(result);
     });
     // Send a ping to confirm a successful connection
@@ -134,6 +169,7 @@ async function run() {
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
     );
+    [];
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
