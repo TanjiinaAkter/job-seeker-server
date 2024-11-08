@@ -65,6 +65,7 @@ async function run() {
     const alljobsCollection = database.collection("alljobs");
     const applydataCollection = database.collection("applydata");
     const applicationCollection = database.collection("applications");
+    const usersCollection = database.collection("users");
 
     // CREATE ALL JOBS
     app.post("/alljobs", async (req, res) => {
@@ -76,6 +77,10 @@ async function run() {
       const result = await alljobsCollection.find().toArray();
       res.send(result);
     });
+    //================================================================//
+    //   alljobs collection
+    //================================================================//
+
     // job detail pete id niyechi
     app.get("/alljobs/:id", async (req, res) => {
       const id = req.params.id;
@@ -86,20 +91,36 @@ async function run() {
 
     app.patch("/alljobs", async (req, res) => {
       // jobId hpcche amra jeita job apply kortesi oi job ta anlam id diye
-      const { jobId } = req.body;
-      const result = await alljobsCollection.updateOne(
-        { _id: new ObjectId(jobId) },
-        { $inc: { hiddenapplicationnumber: 1 } }
-      );
-      res.send(result);
+      const { jobId, status } = req.body;
+      try {
+        const result = await alljobsCollection.updateOne(
+          { _id: new ObjectId(jobId) },
+          {
+            $inc: { hiddenapplicationnumber: 1 },
+            $set: { status: status },
+          }
+        );
+        if (result.modifiedCount > 0) {
+          res.status(200).send({ message: "job updated with status property" });
+        } else {
+          result.status(400).send({ message: "failed to add status" });
+        }
+      } catch (error) {
+        res.status(500).send({ message: "server error" });
+      }
     });
-
+    //================================================================//
+    // eita lagbe na maybe collection
+    //================================================================//
     // eita ager ta
     app.post("/applydata", async (req, res) => {
       const dataapply = req.body;
       const result = await applydataCollection.insertOne(dataapply);
       res.send(result);
     });
+    //================================================================//
+    // applydata form er collection
+    //================================================================//
     // Route for handling job application submissions
     app.post("/formapply", upload, async (req, res) => {
       const { name, email, company, jobTitle, jobId } = req.body;
@@ -152,6 +173,7 @@ async function run() {
     app.patch("/applications/:id", async (req, res) => {
       const jobInfo = req.body;
       const id = req.params.id;
+
       const query = { _id: new ObjectId(id) };
       const updatedDoc = {
         $set: {
@@ -163,6 +185,42 @@ async function run() {
       console.log(query, jobInfo, updatedDoc);
       const result = await applicationCollection.updateOne(query, updatedDoc);
       res.send(result);
+    });
+
+    //================================================================//
+    //  USERS COLLECTION
+    //================================================================//
+    app.post("/users", async (req, res) => {
+      const user = req.body;
+      const result = await usersCollection.insertOne(user);
+      res.send(result);
+    });
+    app.get("/users", async (req, res) => {
+      const email = req.query.email;
+      const query = { email: email };
+      console.log(query);
+      const result = await usersCollection.find(query).toArray();
+      res.send(result);
+    });
+    app.patch("/users", async (req, res) => {
+      try {
+        const email = req.query.email;
+        const editProfile = req.body;
+        const query = { email: email };
+        const updatedDoc = {
+          $set: { ...editProfile },
+        };
+
+        const result = await usersCollection.updateOne(query, updatedDoc);
+        if (result.modifiedCount > 0) {
+          res.status(200).send(result);
+        } else {
+          res.status(404).send({ message: "User not found or data unchanged" });
+        }
+      } catch (error) {
+        console.error("Server error:", error);
+        res.status(500).send({ message: "Internal Server Error" });
+      }
     });
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
