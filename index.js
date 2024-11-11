@@ -6,6 +6,10 @@ require("dotenv").config();
 const cors = require("cors");
 const multer = require("multer");
 const path = require("path");
+//================================================================//
+// JWT import
+//================================================================//
+const jwt = require("jsonwebtoken");
 // client er form submission er data parse korte url encoded use hocche
 app.use(express.urlencoded({ extended: true }));
 app.use(cors());
@@ -57,6 +61,38 @@ async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
+
+    //================================================================//
+    //  CREATE TOKEN
+    //================================================================//
+
+    app.post("/jwt", async (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: "1h",
+      });
+      res.send({ token });
+    });
+    // token verify
+    const verifyToken = (req, res, next) => {
+      if (!req.headers.authorization) {
+        return res.status(401).send({ message: "forbidden access" });
+      }
+      const token = req.headers.authorization.split(" ")[1];
+
+      jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+        if (err) {
+          return res
+            .status(401)
+            .send({ message: "orbidden access because of err" });
+        }
+
+        req.decoded = decoded;
+        next();
+        console.log("getting verify decoded user email,iat, and exp");
+      });
+    };
+
     //==========================
     // database works starts
     //==========================
@@ -66,6 +102,7 @@ async function run() {
     const applydataCollection = database.collection("applydata");
     const applicationCollection = database.collection("applications");
     const usersCollection = database.collection("users");
+    const savedjobsCollection = database.collection("savedjobs");
 
     // CREATE ALL JOBS
     app.post("/alljobs", async (req, res) => {
@@ -86,6 +123,12 @@ async function run() {
       const id = req.params.id;
       const get_id = { _id: new ObjectId(id) };
       const result = await alljobsCollection.findOne(get_id);
+      res.send(result);
+    });
+    app.get("/alljobs", async (req, res) => {
+      const email = req.params.email;
+      const query = { email: email };
+      const result = await alljobsCollection.find(query).toArray();
       res.send(result);
     });
 
@@ -156,20 +199,24 @@ async function run() {
     //   const result = await applicationCollection.find().toArray();
     //   res.send(result);
     // });
-    app.get("/applications", async (req, res) => {
-      const email = req.query.email;
-      console.log("specific email", email); // This will show the email being queried
-      const query = { email: email };
-      const result = await applicationCollection.find(query).toArray();
-      res.send(result);
-    });
-    // app.get("/applications/:email", async (req, res) => {
+    // app.get("/applications", async (req, res) => {
     //   const email = req.query.email;
+    //   console.log("specific email", email); // This will show the email being queried
     //   const query = { email: email };
-    //   console.log("specific email", query,email);
     //   const result = await applicationCollection.find(query).toArray();
     //   res.send(result);
     // });
+    app.get("/applications", async (req, res) => {
+      const email = req.query.email;
+
+      // if (email !== req.decoded.email) {
+      //   return res.status(403).send({ message: "forbidden access" });
+      // }
+      const query = { email: email };
+      console.log("specific email, body email", query, email);
+      const result = await applicationCollection.find(query).toArray();
+      res.send(result);
+    });
     app.patch("/applications/:id", async (req, res) => {
       const jobInfo = req.body;
       const id = req.params.id;
@@ -221,6 +268,35 @@ async function run() {
         console.error("Server error:", error);
         res.status(500).send({ message: "Internal Server Error" });
       }
+    });
+
+    //================================================================//
+    //  SAVEDJOBS COLLECTION /savedjobs
+    //================================================================//
+    app.post("/savedjobs", async (req, res) => {
+      const jobs = req.body;
+      const result = await savedjobsCollection.insertOne(jobs);
+      res.send(result);
+    });
+
+    // app.get("/savedjobs", async (req, res) => {
+    //   const job = req.body;
+    //   const result = await savedjobsCollection.find().toArray();
+    //   res.send(result);
+    // });
+
+    app.get("/savedjobs", async (req, res) => {
+      const email = req.query.email;
+      const query = { email: email };
+      const result = await savedjobsCollection.find(query).toArray();
+      res.send(result);
+    });
+
+    app.delete("/savedjobs/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await savedjobsCollection.deleteOne(query);
+      res.send(result);
     });
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
