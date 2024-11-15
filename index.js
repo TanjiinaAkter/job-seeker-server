@@ -73,7 +73,7 @@ async function run() {
       });
       res.send({ token });
     });
-    // token verify
+    // token verify (kortesi karon jei user jeita te request korbe se jeno tar info tai pay ,,onno user er info jeno se na pay)
     const verifyToken = (req, res, next) => {
       if (!req.headers.authorization) {
         return res.status(401).send({ message: "forbidden access" });
@@ -195,23 +195,9 @@ async function run() {
       }
     });
 
-    // app.get("/applications", async (req, res) => {
-    //   const result = await applicationCollection.find().toArray();
-    //   res.send(result);
-    // });
-    // app.get("/applications", async (req, res) => {
-    //   const email = req.query.email;
-    //   console.log("specific email", email); // This will show the email being queried
-    //   const query = { email: email };
-    //   const result = await applicationCollection.find(query).toArray();
-    //   res.send(result);
-    // });
     app.get("/applications", async (req, res) => {
       const email = req.query.email;
 
-      // if (email !== req.decoded.email) {
-      //   return res.status(403).send({ message: "forbidden access" });
-      // }
       const query = { email: email };
       console.log("specific email, body email", query, email);
       const result = await applicationCollection.find(query).toArray();
@@ -243,13 +229,18 @@ async function run() {
       res.send(result);
     });
     app.get("/users", async (req, res) => {
+      const users = req.body;
+      const result = await usersCollection.find().toArray();
+      res.send(result);
+    });
+    app.get("/users",verifyToken, async (req, res) => {
       const email = req.query.email;
       const query = { email: email };
       console.log(query);
       const result = await usersCollection.find(query).toArray();
       res.send(result);
     });
-    app.patch("/users", async (req, res) => {
+    app.patch("/users", verifyToken, async (req, res) => {
       try {
         const email = req.query.email;
         const editProfile = req.body;
