@@ -73,10 +73,12 @@ async function run() {
       });
       res.send({ token });
     });
-    // token verify (kortesi karon jei user jeita te request korbe se jeno tar info tai pay ,,onno user er info jeno se na pay)
+    // token verify
     const verifyToken = (req, res, next) => {
       if (!req.headers.authorization) {
-        return res.status(401).send({ message: "forbidden access" });
+        return res
+          .status(401)
+          .send({ message: "forbidden access, token pai nai" });
       }
       const token = req.headers.authorization.split(" ")[1];
 
@@ -84,12 +86,12 @@ async function run() {
         if (err) {
           return res
             .status(401)
-            .send({ message: "orbidden access because of err" });
+            .send({ message: "forbidden access because of err" });
         }
 
         req.decoded = decoded;
         next();
-        console.log("getting verify decoded user email,iat, and exp");
+        console.log("getting verify decoded user email,iat, and exp", decoded);
       });
     };
 
@@ -228,39 +230,36 @@ async function run() {
       const result = await usersCollection.insertOne(user);
       res.send(result);
     });
+    // app.get("/users", async (req, res) => {
+    //   const users = req.body;
+    //   const result = await usersCollection.find().toArray();
+    //   res.send(result);
+    // });
     app.get("/users", async (req, res) => {
-      const users = req.body;
-      const result = await usersCollection.find().toArray();
-      res.send(result);
-    });
-    app.get("/users",verifyToken, async (req, res) => {
       const email = req.query.email;
       const query = { email: email };
       console.log(query);
-      const result = await usersCollection.find(query).toArray();
+      const result = await usersCollection.findOne(query);
       res.send(result);
     });
+
     app.patch("/users", verifyToken, async (req, res) => {
-      try {
-        const email = req.query.email;
-        const editProfile = req.body;
-        const query = { email: email };
-        const updatedDoc = {
-          $set: { ...editProfile },
-        };
-
-        const result = await usersCollection.updateOne(query, updatedDoc);
-        if (result.modifiedCount > 0) {
-          res.status(200).send(result);
-        } else {
-          res.status(404).send({ message: "User not found or data unchanged" });
-        }
-      } catch (error) {
-        console.error("Server error:", error);
-        res.status(500).send({ message: "Internal Server Error" });
+      const email = req.query.email;
+      console.log("here is email", email);
+      const getUpdatedData = req.body;
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ message: "forbidden access" });
       }
-    });
+      const filter = { email: email };
+      const updatedDoc = {
+        $set: {
+          ...getUpdatedData,
+        },
+      };
 
+      const result = await usersCollection.updateOne(filter, updatedDoc);
+      res.send(result);
+    });
     //================================================================//
     //  SAVEDJOBS COLLECTION /savedjobs
     //================================================================//
@@ -289,6 +288,8 @@ async function run() {
       const result = await savedjobsCollection.deleteOne(query);
       res.send(result);
     });
+
+    
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log(
