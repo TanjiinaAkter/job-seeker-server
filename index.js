@@ -231,7 +231,7 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/users",verifyToken, async (req, res) => {
+    app.get("/users", async (req, res) => {
       try {
         const result = await usersCollection.find().toArray();
         res.send(result);
@@ -242,11 +242,14 @@ async function run() {
 
     app.get("/users/single", verifyToken, async (req, res) => {
       const email = req.query.email;
-      
+
       if (!email) {
         return res
           .status(400)
           .send({ message: "Email query parameter is required" });
+      }
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ message: "Email not match" });
       }
       try {
         const user = await usersCollection.findOne({ email: email });
@@ -259,7 +262,7 @@ async function run() {
       }
     });
 
-    app.patch("/users", verifyToken, async (req, res) => {
+    app.patch("/users/single", verifyToken, async (req, res) => {
       const email = req.query.email;
       console.log("here is email", email);
       const getUpdatedData = req.body;
@@ -274,6 +277,13 @@ async function run() {
       };
 
       const result = await usersCollection.updateOne(filter, updatedDoc);
+      res.send(result);
+    });
+
+    app.delete("/users/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await usersCollection.deleteOne(query);
       res.send(result);
     });
     //================================================================//
