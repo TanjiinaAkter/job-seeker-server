@@ -230,17 +230,33 @@ async function run() {
       const result = await usersCollection.insertOne(user);
       res.send(result);
     });
-    // app.get("/users", async (req, res) => {
-    //   const users = req.body;
-    //   const result = await usersCollection.find().toArray();
-    //   res.send(result);
-    // });
-    app.get("/users", async (req, res) => {
+
+    app.get("/users",verifyToken, async (req, res) => {
+      try {
+        const result = await usersCollection.find().toArray();
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Failed to fetch users", error });
+      }
+    });
+
+    app.get("/users/single", verifyToken, async (req, res) => {
       const email = req.query.email;
-      const query = { email: email };
-      console.log(query);
-      const result = await usersCollection.findOne(query);
-      res.send(result);
+      
+      if (!email) {
+        return res
+          .status(400)
+          .send({ message: "Email query parameter is required" });
+      }
+      try {
+        const user = await usersCollection.findOne({ email: email });
+        if (!user) {
+          return res.status(404).send({ message: "User not found" });
+        }
+        res.send(user);
+      } catch (error) {
+        res.status(500).send({ message: "Failed to fetch user", error });
+      }
     });
 
     app.patch("/users", verifyToken, async (req, res) => {
@@ -289,7 +305,6 @@ async function run() {
       res.send(result);
     });
 
-    
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log(
