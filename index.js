@@ -127,6 +127,7 @@ async function run() {
       const result = await alljobsCollection.findOne(get_id);
       res.send(result);
     });
+    // ALL JOBS PACCHI
     app.get("/alljobs", async (req, res) => {
       const email = req.params.email;
       const query = { email: email };
@@ -154,6 +155,25 @@ async function run() {
         res.status(500).send({ message: "server error" });
       }
     });
+
+    app.patch("/alljobs/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const dataEdit = req.body;
+      const updatedDoc = {
+        $set: {
+          ...dataEdit,
+        },
+      };
+      const result = await alljobsCollection.updateOne(filter, updatedDoc);
+      res.send(result);
+    });
+    app.delete("/alljobs/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await alljobsCollection.deleteOne(query);
+      res.send(result);
+    });
     //================================================================//
     // eita lagbe na maybe collection
     //================================================================//
@@ -179,6 +199,7 @@ async function run() {
         jobId,
         company,
         jobTitle,
+        status: "pending",
         createdAt: new Date(),
       };
       console.log(applicationData);
@@ -196,8 +217,11 @@ async function run() {
         res.status(500).json({ message: "Error saving application", error });
       }
     });
-
     app.get("/applications", async (req, res) => {
+      const result = await applicationCollection.find().toArray();
+      res.send(result);
+    });
+    app.get("/applications/single", async (req, res) => {
       const email = req.query.email;
 
       const query = { email: email };
@@ -205,20 +229,30 @@ async function run() {
       const result = await applicationCollection.find(query).toArray();
       res.send(result);
     });
-    app.patch("/applications/:id", async (req, res) => {
-      const jobInfo = req.body;
+    app.get("/applications/:id", async (req, res) => {
       const id = req.params.id;
 
       const query = { _id: new ObjectId(id) };
+
+      const result = await applicationCollection.findOne(query);
+      res.send(result);
+    });
+    app.put("/applications/:id", async (req, res) => {
+      const status = req.body;
+      const id = req.params.id;
+
+      const query = { _id: new ObjectId(id) };
+
       const updatedDoc = {
-        $set: {
-          jobId: jobInfo.jobId,
-          jobtitle: jobInfo.jobtitle,
-          company: jobInfo.company,
-        },
+        $set: status,
       };
-      console.log(query, jobInfo, updatedDoc);
-      const result = await applicationCollection.updateOne(query, updatedDoc);
+      const options = { upsert: true };
+      console.log(query, updatedDoc);
+      const result = await applicationCollection.updateOne(
+        query,
+        updatedDoc,
+        options
+      );
       res.send(result);
     });
 
@@ -284,6 +318,19 @@ async function run() {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await usersCollection.deleteOne(query);
+      res.send(result);
+    });
+
+    // admin korar jonno amra /users er por / admin route nicche just bujhar subidhar jonno
+    app.patch("/users/admin/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const updatedDoc = {
+        $set: {
+          role: "admin",
+        },
+      };
+      const result = await usersCollection.updateOne(filter, updatedDoc);
       res.send(result);
     });
     //================================================================//
