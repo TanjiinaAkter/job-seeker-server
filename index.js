@@ -105,26 +105,27 @@ async function run() {
     const applicationCollection = database.collection("applications");
     const usersCollection = database.collection("users");
     const savedjobsCollection = database.collection("savedjobs");
-
+    const interviewCollection = database.collection("interview");
+    //================================================================//
+    //   alljobs collection
+    //================================================================//
     // CREATE ALL JOBS
     app.post("/alljobs", async (req, res) => {
       const job = req.body;
       const result = await alljobsCollection.insertOne(job);
       res.send(result);
     });
+    // ALL JOBS PACCHI
     app.get("/alljobs", async (req, res) => {
       const result = await alljobsCollection.find().toArray();
       res.send(result);
     });
-    //================================================================//
-    //   alljobs collection
-    //================================================================//
 
-    // job detail pete id niyechi
+    // specific job detail pete id niyechi
     app.get("/alljobs/:id", async (req, res) => {
       const id = req.params.id;
-      const get_id = { _id: new ObjectId(id) };
-      const result = await alljobsCollection.findOne(get_id);
+      const query = { _id: new ObjectId(id) };
+      const result = await alljobsCollection.findOne(query);
       res.send(result);
     });
     // ALL JOBS PACCHI
@@ -184,7 +185,7 @@ async function run() {
       res.send(result);
     });
     //================================================================//
-    // applydata form er collection
+    // applydata form er collection AND APPLICATIONS
     //================================================================//
     // Route for handling job application submissions
     app.post("/formapply", upload, async (req, res) => {
@@ -259,12 +260,13 @@ async function run() {
     //================================================================//
     //  USERS COLLECTION
     //================================================================//
+    // user create kortesi
     app.post("/users", async (req, res) => {
       const user = req.body;
       const result = await usersCollection.insertOne(user);
       res.send(result);
     });
-
+    // all users data pacchi
     app.get("/users", async (req, res) => {
       try {
         const result = await usersCollection.find().toArray();
@@ -274,17 +276,17 @@ async function run() {
       }
     });
 
-    app.get("/users/single", verifyToken, async (req, res) => {
+    app.get("/users/single", async (req, res) => {
       const email = req.query.email;
-
+      console.log(email);
       if (!email) {
         return res
           .status(400)
           .send({ message: "Email query parameter is required" });
       }
-      if (email !== req.decoded.email) {
-        return res.status(403).send({ message: "Email not match" });
-      }
+      // if (email !== req.decoded.email) {
+      //   return res.status(403).send({ message: "Email not match" });
+      // }
       try {
         const user = await usersCollection.findOne({ email: email });
         if (!user) {
@@ -362,6 +364,18 @@ async function run() {
       res.send(result);
     });
 
+    //================================================================//
+    //  INTERVIEW SCHEDULE COLLECTION
+    //================================================================//
+    app.post("/interviewschedule", async (req, res) => {
+      const scheduleData = req.body;
+      const result = await interviewCollection.insertOne(scheduleData);
+      res.send(result);
+    });
+    app.get("/interviewschedule", async (req, res) => {
+      const result = await interviewCollection.find().toArray();
+      res.send(result);
+    });
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log(
