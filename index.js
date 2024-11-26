@@ -106,6 +106,7 @@ async function run() {
     const usersCollection = database.collection("users");
     const savedjobsCollection = database.collection("savedjobs");
     const interviewCollection = database.collection("interview");
+    const testimonialCollection = database.collection("testimonial");
     //================================================================//
     //   alljobs collection
     //================================================================//
@@ -156,7 +157,7 @@ async function run() {
         res.status(500).send({ message: "server error" });
       }
     });
-
+    // JOb edit
     app.patch("/alljobs/:id", async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) };
@@ -169,6 +170,7 @@ async function run() {
       const result = await alljobsCollection.updateOne(filter, updatedDoc);
       res.send(result);
     });
+    //job delete
     app.delete("/alljobs/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
@@ -376,6 +378,16 @@ async function run() {
       const result = await interviewCollection.find().toArray();
       res.send(result);
     });
+
+    //================================================================//
+    //   testimonial collection
+    //================================================================//
+
+    app.get("/testimonial", async (req, res) => {
+      const result = await testimonialCollection.find().toArray();
+      res.send(result);
+    });
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log(
