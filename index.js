@@ -84,6 +84,7 @@ async function run() {
 
       jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
         if (err) {
+          console.log("error paisi token e");
           return res
             .status(401)
             .send({ message: "forbidden access because of err" });
@@ -93,6 +94,17 @@ async function run() {
         next();
         console.log("getting verify decoded user email,iat, and exp", decoded);
       });
+    };
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email: email };
+      const user = await usersCollection.findOne(query);
+      // condition dicchi je user ta paisi tar role admin kina
+      const isAdmin = user?.role === "admin";
+      if (!isAdmin) {
+        return res.status(403).send({ message: "unauthorized" });
+      }
+      next();
     };
 
     //==========================
@@ -111,7 +123,7 @@ async function run() {
     //   alljobs collection
     //================================================================//
     // CREATE ALL JOBS
-    app.post("/alljobs", async (req, res) => {
+    app.post("/alljobs", verifyToken, verifyAdmin, async (req, res) => {
       const job = req.body;
       const result = await alljobsCollection.insertOne(job);
       res.send(result);
@@ -130,14 +142,14 @@ async function run() {
       res.send(result);
     });
     // ALL JOBS PACCHI
-    app.get("/alljobs", async (req, res) => {
+    app.get("/alljobs", verifyToken, async (req, res) => {
       const email = req.params.email;
       const query = { email: email };
       const result = await alljobsCollection.find(query).toArray();
       res.send(result);
     });
 
-    app.patch("/alljobs", async (req, res) => {
+    app.patch("/alljobs", verifyToken, verifyAdmin, async (req, res) => {
       // jobId hpcche amra jeita job apply kortesi oi job ta anlam id diye
       const { jobId, status } = req.body;
       try {
@@ -158,7 +170,7 @@ async function run() {
       }
     });
     // JOb edit
-    app.patch("/alljobs/:id", async (req, res) => {
+    app.patch("/alljobs/:id", verifyToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) };
       const dataEdit = req.body;
@@ -171,7 +183,7 @@ async function run() {
       res.send(result);
     });
     //job delete
-    app.delete("/alljobs/:id", async (req, res) => {
+    app.delete("/alljobs/:id", verifyToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await alljobsCollection.deleteOne(query);
@@ -190,7 +202,7 @@ async function run() {
     // applydata form er collection AND APPLICATIONS
     //================================================================//
     // Route for handling job application submissions
-    app.post("/formapply", upload, async (req, res) => {
+    app.post("/formapply", verifyToken, upload, async (req, res) => {
       const { name, email, company, jobTitle, jobId } = req.body;
       const resume = req.file ? req.file.filename : null; // Get the filename of the uploaded file
 
@@ -220,11 +232,13 @@ async function run() {
         res.status(500).json({ message: "Error saving application", error });
       }
     });
-    app.get("/applications", async (req, res) => {
+    // kara apply korse tader list
+    app.get("/applications", verifyToken, async (req, res) => {
       const result = await applicationCollection.find().toArray();
       res.send(result);
     });
-    app.get("/applications/single", async (req, res) => {
+    // specific user er sobgulo application pete maybe
+    app.get("/applications/single", verifyToken, async (req, res) => {
       const email = req.query.email;
 
       const query = { email: email };
@@ -232,7 +246,7 @@ async function run() {
       const result = await applicationCollection.find(query).toArray();
       res.send(result);
     });
-    app.get("/applications/:id", async (req, res) => {
+    app.get("/applications/:id", verifyToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
 
       const query = { _id: new ObjectId(id) };
@@ -240,7 +254,7 @@ async function run() {
       const result = await applicationCollection.findOne(query);
       res.send(result);
     });
-    app.put("/applications/:id", async (req, res) => {
+    app.put("/applications/:id", verifyToken, verifyAdmin, async (req, res) => {
       const status = req.body;
       const id = req.params.id;
 
@@ -262,15 +276,16 @@ async function run() {
     //================================================================//
     //  USERS COLLECTION
     //================================================================//
-    // user create kortesi
+    // user create kortesi...public hobe karon registration er por create hocche
     app.post("/users", async (req, res) => {
       const user = req.body;
       const result = await usersCollection.insertOne(user);
       res.send(result);
     });
     // all users data pacchi
-    app.get("/users", async (req, res) => {
+    app.get("/users", verifyToken, verifyAdmin, async (req, res) => {
       try {
+        // console.log("token email", req.decoded.email);
         const result = await usersCollection.find().toArray();
         res.send(result);
       } catch (error) {
@@ -278,7 +293,22 @@ async function run() {
       }
     });
 
-    app.get("/users/single", async (req, res) => {
+    // first check admin kina kono user , tar jonno obosshoi age token verify korte hobe
+    app.get("/users/admin/:email", verifyToken, async (req, res) => {
+      const email = req.params.email;
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+      const query = { email: email };
+      // email verify hole email diye data khujbo db te
+      const user = await usersCollection.findOne(query);
+      let admin = false;
+      if (user) {
+        admin = user?.role === "admin";
+      }
+      res.send({ admin });
+    });
+    app.get("/users/single", verifyToken, async (req, res) => {
       const email = req.query.email;
       console.log(email);
       if (!email) {
@@ -299,14 +329,14 @@ async function run() {
         res.status(500).send({ message: "Failed to fetch user", error });
       }
     });
-
+    // user er personal data user ar admin 2 jonei edit korte parbe
     app.patch("/users/single", verifyToken, async (req, res) => {
       const email = req.query.email;
       console.log("here is email", email);
       const getUpdatedData = req.body;
-      if (email !== req.decoded.email) {
-        return res.status(403).send({ message: "forbidden access" });
-      }
+      // if (email !== req.decoded.email) {
+      //   return res.status(403).send({ message: "forbidden access" });
+      // }
       const filter = { email: email };
       const updatedDoc = {
         $set: {
@@ -326,21 +356,26 @@ async function run() {
     });
 
     // admin korar jonno amra /users er por / admin route nicche just bujhar subidhar jonno
-    app.patch("/users/admin/:id", async (req, res) => {
-      const id = req.params.id;
-      const filter = { _id: new ObjectId(id) };
-      const updatedDoc = {
-        $set: {
-          role: "admin",
-        },
-      };
-      const result = await usersCollection.updateOne(filter, updatedDoc);
-      res.send(result);
-    });
+    app.patch(
+      "/users/admin/:id",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+        const filter = { _id: new ObjectId(id) };
+        const updatedDoc = {
+          $set: {
+            role: "admin",
+          },
+        };
+        const result = await usersCollection.updateOne(filter, updatedDoc);
+        res.send(result);
+      }
+    );
     //================================================================//
     //  SAVEDJOBS COLLECTION /savedjobs
     //================================================================//
-    app.post("/savedjobs", async (req, res) => {
+    app.post("/savedjobs", verifyToken, async (req, res) => {
       const jobs = req.body;
       const result = await savedjobsCollection.insertOne(jobs);
       res.send(result);
@@ -352,14 +387,14 @@ async function run() {
     //   res.send(result);
     // });
 
-    app.get("/savedjobs", async (req, res) => {
+    app.get("/savedjobs", verifyToken, async (req, res) => {
       const email = req.query.email;
       const query = { email: email };
       const result = await savedjobsCollection.find(query).toArray();
       res.send(result);
     });
 
-    app.delete("/savedjobs/:id", async (req, res) => {
+    app.delete("/savedjobs/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await savedjobsCollection.deleteOne(query);
@@ -369,12 +404,12 @@ async function run() {
     //================================================================//
     //  INTERVIEW SCHEDULE COLLECTION
     //================================================================//
-    app.post("/interviewschedule", async (req, res) => {
+    app.post("/interviewschedule", verifyToken, async (req, res) => {
       const scheduleData = req.body;
       const result = await interviewCollection.insertOne(scheduleData);
       res.send(result);
     });
-    app.get("/interviewschedule", async (req, res) => {
+    app.get("/interviewschedule", verifyToken, async (req, res) => {
       const result = await interviewCollection.find().toArray();
       res.send(result);
     });
