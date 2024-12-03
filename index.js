@@ -4,8 +4,9 @@ const port = process.env.PORT || 5000;
 require("dotenv").config();
 //DB-USER AR PASS LAGBE EITAR SATHE FILE CONNECT KORTE
 const cors = require("cors");
-const multer = require("multer");
+
 const path = require("path");
+const cookieParser = require("cookie-parser");
 //================================================================//
 // JWT import
 //================================================================//
@@ -13,36 +14,18 @@ const jwt = require("jsonwebtoken");
 // client er form submission er data parse korte url encoded use hocche
 app.use(express.urlencoded({ extended: true }));
 app.use(cors());
+
 app.use(express.json());
-// server theke uploaded file gulo static vabe dibe jeno client side e easily access koora jay
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
-// Set storage engine
-const storage = multer.diskStorage({
-  destination: "./uploads/",
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname)); // Append extension
-  },
-});
-// Init upload ..media type of the file(mimtype)
-const upload = multer({
-  storage,
-  limits: { fileSize: 1000000 }, // Limit file size to 1MB
-  fileFilter: (req, file, cb) => {
-    const filetypes = /pdf/; // Only allow PDF files
-    const extname = filetypes.test(
-      path.extname(file.originalname).toLowerCase()
-    );
-    const mimetype = filetypes.test(file.mimetype);
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      "https://job-seeker-e20d7.web.app",
+      "https://job-seeker-e20d7.firebaseapp.com",
+    ],
+  })
+);
 
-    if (mimetype && extname) {
-      return cb(null, true);
-    } else {
-      cb("Error: PDFs only!");
-    }
-  },
-}).single("resume"); // Adjust to the name of the file input
-
-module.exports = upload;
 // =============== MONGIDB DATABASE ================
 
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
@@ -60,7 +43,7 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
 
     //================================================================//
     //  CREATE TOKEN
@@ -71,10 +54,12 @@ async function run() {
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
         expiresIn: "1h",
       });
+      console.log("new token ", token);
       res.send({ token });
     });
     // token verify
     const verifyToken = (req, res, next) => {
+      console.log("header auth", req.headers.authorization);
       if (!req.headers.authorization) {
         return res
           .status(401)
@@ -135,7 +120,7 @@ async function run() {
     });
 
     // specific job detail pete id niyechi
-    app.get("/alljobs/:id", async (req, res) => {
+    app.get("/alljobs/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await alljobsCollection.findOne(query);
@@ -149,7 +134,7 @@ async function run() {
       res.send(result);
     });
 
-    app.patch("/alljobs", verifyToken, verifyAdmin, async (req, res) => {
+    app.patch("/alljobs", verifyToken, async (req, res) => {
       // jobId hpcche amra jeita job apply kortesi oi job ta anlam id diye
       const { jobId, status } = req.body;
       try {
@@ -193,27 +178,22 @@ async function run() {
     // eita lagbe na maybe collection
     //================================================================//
     // eita ager ta
-    app.post("/applydata", async (req, res) => {
-      const dataapply = req.body;
-      const result = await applydataCollection.insertOne(dataapply);
-      res.send(result);
-    });
     //================================================================//
     // applydata form er collection AND APPLICATIONS
     //================================================================//
     // Route for handling job application submissions
-    app.post("/formapply", verifyToken, upload, async (req, res) => {
-      const { name, email, company, jobTitle, jobId } = req.body;
-      const resume = req.file ? req.file.filename : null; // Get the filename of the uploaded file
+    app.post("/applications", verifyToken, async (req, res) => {
+      const { name, email, company, jobTitle, jobId, resume } = req.body;
+      // const resume = req.file ? req.file.filename : null; // Get the filename of the uploaded file
 
       // Prepare the application data
       const applicationData = {
         name,
         email,
-        resume,
-        jobId,
         company,
         jobTitle,
+        jobId,
+        resume,
         status: "pending",
         createdAt: new Date(),
       };
@@ -246,7 +226,7 @@ async function run() {
       const result = await applicationCollection.find(query).toArray();
       res.send(result);
     });
-    app.get("/applications/:id", verifyToken, verifyAdmin, async (req, res) => {
+    app.get("/applications/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
 
       const query = { _id: new ObjectId(id) };
@@ -283,7 +263,7 @@ async function run() {
       res.send(result);
     });
     // all users data pacchi
-    app.get("/users", verifyToken, verifyAdmin, async (req, res) => {
+    app.get("/users", verifyToken, async (req, res) => {
       try {
         // console.log("token email", req.decoded.email);
         const result = await usersCollection.find().toArray();
@@ -296,9 +276,10 @@ async function run() {
     // first check admin kina kono user , tar jonno obosshoi age token verify korte hobe
     app.get("/users/admin/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
-      if (email !== req.decoded.email) {
-        return res.status(403).send({ message: "forbidden access" });
-      }
+      console.log("admin email", { email, demail: req.decoded.email });
+      // if (email !== req.decoded.email) {
+      //   return res.status(403).send({ message: "forbidden access" });
+      // }
       const query = { email: email };
       // email verify hole email diye data khujbo db te
       const user = await usersCollection.findOne(query);
@@ -330,7 +311,7 @@ async function run() {
       }
     });
     // user er personal data user ar admin 2 jonei edit korte parbe
-    app.patch("/users/single", verifyToken, async (req, res) => {
+    app.patch("/users/single", verifyToken, verifyAdmin, async (req, res) => {
       const email = req.query.email;
       console.log("here is email", email);
       const getUpdatedData = req.body;
@@ -348,7 +329,7 @@ async function run() {
       res.send(result);
     });
 
-    app.delete("/users/:id", async (req, res) => {
+    app.delete("/users/:id", verifyToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await usersCollection.deleteOne(query);
@@ -387,12 +368,21 @@ async function run() {
     //   res.send(result);
     // });
 
-    app.get("/savedjobs", verifyToken, async (req, res) => {
-      const email = req.query.email;
-      const query = { email: email };
-      const result = await savedjobsCollection.find(query).toArray();
-      res.send(result);
-    });
+    app.get(
+      "/savedjobs",
+      (req, res, next) => {
+        console.log("savedjobs token verify:", req.headers.authorization);
+        return verifyToken(req, res, next);
+      },
+
+      async (req, res) => {
+        const email = req.query.email;
+
+        const query = { email: email };
+        const result = await savedjobsCollection.find(query).toArray();
+        res.send(result);
+      }
+    );
 
     app.delete("/savedjobs/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
@@ -404,11 +394,16 @@ async function run() {
     //================================================================//
     //  INTERVIEW SCHEDULE COLLECTION
     //================================================================//
-    app.post("/interviewschedule", verifyToken, async (req, res) => {
-      const scheduleData = req.body;
-      const result = await interviewCollection.insertOne(scheduleData);
-      res.send(result);
-    });
+    app.post(
+      "/interviewschedule",
+      verifyToken,
+
+      async (req, res) => {
+        const scheduleData = req.body;
+        const result = await interviewCollection.insertOne(scheduleData);
+        res.send(result);
+      }
+    );
     app.get("/interviewschedule", verifyToken, async (req, res) => {
       const result = await interviewCollection.find().toArray();
       res.send(result);
@@ -424,11 +419,11 @@ async function run() {
     });
 
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!"
-    );
-    [];
+    // await client.db("admin").command({ ping: 1 });
+    // console.log(
+    //   "Pinged your deployment. You successfully connected to MongoDB!"
+    // );
+    // [];
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
