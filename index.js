@@ -259,6 +259,10 @@ async function run() {
     // user create kortesi...public hobe karon registration er por create hocche
     app.post("/users", async (req, res) => {
       const user = req.body;
+      console.log(user, "user info");
+      if (user) {
+        return res.status(401).send({ message: "user is already exist" });
+      }
       const result = await usersCollection.insertOne(user);
       res.send(result);
     });
@@ -325,6 +329,23 @@ async function run() {
         },
       };
 
+      const result = await usersCollection.updateOne(filter, updatedDoc);
+      res.send(result);
+    });
+
+    app.patch("/users/userprof/:email", verifyToken, async (req, res) => {
+      const email = req.params.email;
+      console.log(email);
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+      const getUpdatedData = req.body;
+      const filter = { email: email };
+      const updatedDoc = {
+        $set: {
+          ...getUpdatedData,
+        },
+      };
       const result = await usersCollection.updateOne(filter, updatedDoc);
       res.send(result);
     });
